@@ -10,49 +10,63 @@ def object_color(object_id):
     return config.OVERLAY_COLORS[object_id % len(config.OVERLAY_COLORS)]
 
 
-def sidebar_objects(objects, limit):
+def sidebar_objects(objects):
+    """Return every confident detection in image-local object order."""
     return sorted(
         (obj for obj in objects if obj.confidence >= config.DETECTOR_CONFIDENCE),
-        key=lambda obj: (obj.distance is None, obj.distance if obj.distance is not None else float('inf'), obj.object_id),
-    )[:max(0, limit)]
+        key=lambda obj: obj.object_id,
+    )
 
 
 def compose_sidebar(image, objects):
+    """Expand an object-card gallery to include all detections without truncation."""
     if not config.SIDEBAR_ENABLED:
         return image
-    height = image.shape[0]
-    sidebar = np.full((height, config.SIDEBAR_WIDTH, 3), (22, 22, 26), np.uint8)
-    cv2.putText(sidebar, "NEAREST OBJECTS", (14, 27), cv2.FONT_HERSHEY_SIMPLEX,
-                .6, (240, 240, 240), 1, cv2.LINE_AA)
-    capacity = min(config.SIDEBAR_MAX_OBJECTS, max(0, (height - 44) // config.SIDEBAR_MIN_CARD_HEIGHT))
-    selected = sidebar_objects(objects, capacity)
+    selected = sidebar_objects(objects)
+    height, width = image.shape[:2]
+    header = 44
+    card_width = config.SIDEBAR_WIDTH
+    min_height = config.SIDEBAR_MIN_CARD_HEIGHT
+    # Use spare vertical space first; for crowded images grow in both dimensions
+    # instead of creating one extremely wide row or one extremely tall column.
+    available_rows = max(1, (height - header) // min_height)
+    balanced_columns = max(1, int(np.ceil(np.sqrt(len(selected) * min_height / card_width))))
+    columns = max(1, min(int(np.ceil(len(selected) / available_rows)), balanced_columns))
+    rows = int(np.ceil(len(selected) / columns))
+    canvas_height = max(height, header + rows * min_height, 80)
+    gallery = np.full((canvas_height, card_width * columns, 3), (22, 22, 26), np.uint8)
+    cv2.putText(gallery, f"DETECTED OBJECTS ({len(selected)})", (14, 27), cv2.FONT_HERSHEY_SIMPLEX,
+                .55, (240, 240, 240), 1, cv2.LINE_AA)
     if not selected:
-        cv2.putText(sidebar, "No visible objects" if capacity else "Increase image height", (14, 60),
-                    cv2.FONT_HERSHEY_SIMPLEX, .45, (160, 160, 170), 1, cv2.LINE_AA)
-    if selected:
-        card_height = (height - 44) // len(selected)
-        for index, obj in enumerate(selected):
-            top = 44 + index * card_height
-            cv2.rectangle(sidebar, (8, top), (config.SIDEBAR_WIDTH - 8, top + card_height - 5), (34, 34, 40), -1)
-            cv2.rectangle(sidebar, (8, top), (11, top + card_height - 5), object_color(obj.object_id), -1)
-            lines = [f"{obj.label.capitalize()} #{obj.object_id}  {obj.confidence:.0%}",
-                     "Depth unknown" if obj.distance is None else f"{obj.distance:.1f} m"]
-            for line_index, line in enumerate(lines):
-                cv2.putText(sidebar, line, (20, top + 24 + line_index * 21), cv2.FONT_HERSHEY_SIMPLEX,
-                            .5, (235, 235, 240), 1, cv2.LINE_AA)
-            if obj.crop is not None:
-                available_height = card_height - 90
-                scale = min((config.SIDEBAR_WIDTH - 40) / obj.crop.shape[1], available_height / obj.crop.shape[0])
-                size = (max(1, round(obj.crop.shape[1] * scale)), max(1, round(obj.crop.shape[0] * scale)))
-                crop = cv2.resize(obj.crop, size, interpolation=cv2.INTER_NEAREST)
-                left = (config.SIDEBAR_WIDTH - size[0]) // 2
-                region = sidebar[top + 83:top + 83 + size[1], left:left + size[0]]
-                alpha = crop[:, :, 3:4].astype(np.float32) / 255
-                region[:] = (crop[:, :, :3] * alpha + region * (1 - alpha)).astype(np.uint8)
-            else:
-                cv2.putText(sidebar, "Mask unavailable", (20, top + 105), cv2.FONT_HERSHEY_SIMPLEX,
-                            .4, (150, 150, 160), 1, cv2.LINE_AA)
-    return np.concatenate((image, sidebar), axis=1)
+        cv2.putText(gallery, "No visible objects", (14, 60), cv2.FONT_HERSHEY_SIMPLEX,
+                    .45, (160, 160, 170), 1, cv2.LINE_AA)
+    card_height = (canvas_height - header) // max(1, rows)
+    for index, obj in enumerate(selected):
+        row, column = divmod(index, columns)
+        top, left = header + row * card_height, column * card_width
+        cv2.rectangle(gallery, (left + 8, top), (left + card_width - 8, top + card_height - 5), (34, 34, 40), -1)
+        cv2.rectangle(gallery, (left + 8, top), (left + 11, top + card_height - 5), object_color(obj.object_id), -1)
+        lines = [f"{obj.label.capitalize()} #{obj.object_id}  {obj.confidence:.0%}",
+                 "Depth unknown" if obj.distance is None else f"{obj.distance:.1f} m"]
+        for line_index, line in enumerate(lines):
+            cv2.putText(gallery, line, (left + 20, top + 24 + line_index * 21), cv2.FONT_HERSHEY_SIMPLEX,
+                        .5, (235, 235, 240), 1, cv2.LINE_AA)
+        if obj.crop is not None:
+            available_height = card_height - 78
+            scale = min((card_width - 40) / obj.crop.shape[1], available_height / obj.crop.shape[0])
+            size = (max(1, round(obj.crop.shape[1] * scale)), max(1, round(obj.crop.shape[0] * scale)))
+            crop = cv2.resize(obj.crop, size, interpolation=cv2.INTER_NEAREST)
+            crop_left = left + (card_width - size[0]) // 2
+            region = gallery[top + 68:top + 68 + size[1], crop_left:crop_left + size[0]]
+            alpha = crop[:, :, 3:4].astype(np.float32) / 255
+            region[:] = (crop[:, :, :3] * alpha + region * (1 - alpha)).astype(np.uint8)
+        else:
+            cv2.putText(gallery, "Mask unavailable", (left + 20, top + 105), cv2.FONT_HERSHEY_SIMPLEX,
+                        .4, (150, 150, 160), 1, cv2.LINE_AA)
+    canvas = np.full((canvas_height, width + gallery.shape[1], 3), (22, 22, 26), np.uint8)
+    canvas[:height, :width] = image
+    canvas[:, width:] = gallery
+    return canvas
 
 
 def draw_scene_objects(image, objects):

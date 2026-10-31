@@ -3,6 +3,4 @@ torchvision
 opencv-python
 numpy
 ultralytics
-timm
-mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git
 transformers>=4.45.0

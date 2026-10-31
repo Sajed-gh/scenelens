@@ -14,17 +14,12 @@ QUIT_KEY = "q"
 HEADLESS = False
 TORCH_THREADS = None
 
-DETECTOR_WEIGHTS = PROJECT_ROOT / "weights" / "yolo26s.pt"
+DETECTOR_WEIGHTS = PROJECT_ROOT / "weights" / "yolo26s-seg.pt"
 DETECTOR_CONFIDENCE = 0.5
 DETECTOR_IMAGE_SIZE = 960
 DETECTOR_DEVICE = DEFAULT_DEVICE
 DETECTOR_FP16 = False
 
-SAM_ENABLED = True
-SAM_WEIGHTS = PROJECT_ROOT / "weights" / "mobile_sam.pt"
-SAM_DEVICE = DEFAULT_DEVICE
-SAM_MAX_OBJECTS = 6  # Segment the highest-confidence objects; raise for detailed images.
-SAM_BATCH_PROMPTS = True  # Decode box prompts together on CUDA.
 MASK_ALPHA = 0.35
 OBJECT_CROP_SIZE = (160, 160)  # Width, height
 
@@ -43,5 +38,4 @@ OVERLAY_COLORS = ((255, 180, 0), (80, 220, 100), (80, 160, 255),
                   (220, 120, 230), (0, 220, 230), (230, 170, 120))  # BGR
 SIDEBAR_ENABLED = True
 SIDEBAR_WIDTH = 280
-SIDEBAR_MAX_OBJECTS = 6
-SIDEBAR_MIN_CARD_HEIGHT = 140
+SIDEBAR_MIN_CARD_HEIGHT = 220

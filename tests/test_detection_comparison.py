@@ -18,8 +18,8 @@ class DetectionComparisonTests(unittest.TestCase):
             root=Path(directory)
             image=root/'input.png'
             cv2.imwrite(str(image),np.zeros((80,120,3),np.uint8))
-            def load(weights,*args):
-                if str(weights).endswith('yolo26m.pt'):
+            def load(weights,*args,**kwargs):
+                if str(weights).endswith('yolo26m-seg.pt'):
                     raise RuntimeError('Checkpoint unavailable')
                 return SimpleNamespace(device='cpu',detect=lambda image:[Detection((10,10,40,60),0,'person',.9)])
             with patch('sys.argv',['compare','--images',str(image),'--repeats','1','--output',str(root/'results')]),patch.object(detection,'Detector',side_effect=load):

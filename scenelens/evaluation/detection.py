@@ -1,8 +1,7 @@
-"""Compare YOLO26s/640, YOLO26s/960 and YOLO26m/960 on the same still images."""
+"""Compare YOLO26s-seg/640, YOLO26s-seg/960 and YOLO26m-seg/960 on the same still images."""
 
 import argparse
 from collections import Counter
-from dataclasses import asdict
 import gc
 import json
 from pathlib import Path
@@ -17,9 +16,9 @@ from scenelens import config
 from scenelens.models.detector import Detector
 
 
-VARIANTS = [('yolo26s-640', 'yolo26s.pt', 640),
-            ('yolo26s-960', 'yolo26s.pt', 960),
-            ('yolo26m-960', 'yolo26m.pt', 960)]
+VARIANTS = [('yolo26s-seg-640', 'yolo26s-seg.pt', 640),
+            ('yolo26s-seg-960', 'yolo26s-seg.pt', 960),
+            ('yolo26m-seg-960', 'yolo26m-seg.pt', 960)]
 
 
 def sync():
@@ -29,6 +28,9 @@ def sync():
 
 def render_detections(image, detections):
     output = image.copy()
+    for detection in detections:
+        if detection.mask is not None:
+            output[detection.mask] = (output[detection.mask]*.7 + np.array([0,220,120])*.3).astype(np.uint8)
     for detection in detections:
         x1, y1, x2, y2 = map(round, detection.bbox)
         cv2.rectangle(output, (x1, y1), (x2, y2), (0, 220, 120), 2)
@@ -69,7 +71,7 @@ def main():
     args.output.mkdir(parents=True,exist_ok=True)
     report = dict(confidence=args.confidence, repeats=args.repeats, threads=args.threads,
                   torch=torch.__version__, image_max_width=config.IMAGE_MAX_WIDTH,
-                  scope='Detection only; latency excludes model load, image decoding and rendering. One warmup per image.',
+                  scope='Detection and segmentation; latency excludes model load, image decoding and rendering. One warmup per image.',
                   accuracy='Unlabeled visual comparison; detection counts are not precision/recall or mAP.', variants=[])
     previews = {key:[] for key,_,_,_ in images}
     for name,weights,size in VARIANTS:
@@ -77,7 +79,7 @@ def main():
         report['variants'].append(entry)
         detector=None
         try:
-            detector=Detector(entry['weights'],args.confidence,size,args.device)
+            detector=Detector(entry['weights'],args.confidence,size,args.device,require_masks=True)
             entry['device']=detector.device
             gpu=detector.device != 'cpu' and torch.cuda.is_available()
             for key,path,image,original_size in images:
@@ -99,7 +101,8 @@ def main():
                 entry['images'].append(dict(source=str(path),original_size=original_size,
                     analyzed_size=[image.shape[1],image.shape[0]],median_ms=median(durations),
                     timings_ms=durations,peak_gpu_allocated_mb=torch.cuda.max_memory_allocated()/2**20 if gpu else None,
-                    counts=dict(Counter(d.label for d in detections)),detections=[asdict(d) for d in detections],overlay=str(overlay)))
+                    counts=dict(Counter(d.label for d in detections)),detections=[dict(bbox=list(d.bbox),class_id=d.class_id,label=d.label,confidence=d.confidence,
+                                     mask_pixels=int(d.mask.sum()) if d.mask is not None else None) for d in detections],overlay=str(overlay)))
                 h,w=rendered.shape[:2]
                 thumbnail=cv2.resize(rendered,(max(1,round(w*480/h)),480))
                 thumbnail=cv2.copyMakeBorder(thumbnail,40,0,0,0,cv2.BORDER_CONSTANT,value=(25,25,25))

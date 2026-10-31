@@ -11,7 +11,7 @@ def parse_options():
     for name, key, value_type in [('image','IMAGE_PATH',Path), ('output','OUTPUT_IMAGE',Path),
                                   ('weights','DETECTOR_WEIGHTS',Path), ('width','IMAGE_MAX_WIDTH',int),
                                   ('detector-size','DETECTOR_IMAGE_SIZE',int),
-                                  ('depth-size','DEPTH_INPUT_SIZE',int), ('max-objects','SAM_MAX_OBJECTS',int),
+                                  ('depth-size','DEPTH_INPUT_SIZE',int),
                                   ('threads','TORCH_THREADS',int)]:
         parser.add_argument('--' + name, dest=key, type=value_type)
     parser.add_argument('--device', help='Optional override; default CUDA with CPU fallback.')
@@ -29,7 +29,7 @@ def parse_options():
                 parser.error(f'{key} must be positive')
             setattr(config, key, value)
     if device:
-        config.DETECTOR_DEVICE = config.SAM_DEVICE = config.DEPTH_DEVICE = device
+        config.DETECTOR_DEVICE = config.DEPTH_DEVICE = device
 
 
 def main():

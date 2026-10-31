@@ -1,39 +1,34 @@
 """Fast deterministic checks; no model downloads or GUI required."""
 import unittest
-from unittest.mock import Mock
+from unittest.mock import patch
+
+import cv2
 
 import numpy as np
-import torch
 
 from scenelens.evaluation.depth import depth_metrics, summarize
 from scenelens.analysis.distance import masked_distance
 from scenelens.analysis.objects import SceneObject
-from scenelens.models.segmenter import Segmenter
 from scenelens.rendering.renderer import extract_object_crop, compose_sidebar, sidebar_objects
 from scenelens import config
 
 
 class ComponentTests(unittest.TestCase):
-    def test_batched_mask_prompts(self):
-        segmenter = Segmenter.__new__(Segmenter)
-        segmenter.batch_prompts = True
-        segmenter.predictor = Mock()
-        segmenter.predictor.device = 'cpu'
-        segmenter.predictor.transform.apply_boxes_torch.side_effect = lambda boxes, shape: boxes
-        masks = torch.zeros((2,1,80,120),dtype=torch.bool)
-        masks[0,0,10:30,10:30] = True
-        masks[1,0,40:60,40:60] = True
-        segmenter.predictor.predict_torch.return_value = (masks,None,None)
-        objects = [SceneObject(1,'person',.9,(10,10,30,30)),
-                   SceneObject(2,'chair',.8,(40,40,60,60))]
-        segmenter.segment(np.zeros((80,120,3),np.uint8),objects,3,.5)
-        segmenter.predictor.set_image.assert_called_once()
-        segmenter.predictor.predict_torch.assert_called_once()
-        segmenter.predictor.predict.assert_not_called()
-        self.assertTrue(objects[0].mask[10:30,10:30].all())
-        self.assertTrue(objects[1].mask[40:60,40:60].all())
-
-
+    def test_gallery_includes_all_objects_beyond_old_capacity(self):
+        image=np.zeros((120,160,3),np.uint8)
+        crop=np.zeros((160,160,4),np.uint8)
+        crop[20:140,20:140]=(20,200,40,255)
+        objects=[SceneObject(i,'chair',.9,(0,0,20,20),crop=crop,
+                             distance=float(13-i) if i%2 else None) for i in range(1,13)]
+        with patch.object(cv2,'putText',wraps=cv2.putText) as text:
+            display=compose_sidebar(image,objects)
+        titles=[call.args[1] for call in text.call_args_list]
+        for i in range(1,13):
+            self.assertIn(f'Chair #{i}  90%',titles)
+        self.assertEqual([o.object_id for o in sidebar_objects(objects)],list(range(1,13)))
+        self.assertGreater(display.shape[0],image.shape[0])
+        self.assertGreater(display.shape[1],image.shape[1])
+        np.testing.assert_array_equal(display[:120,:160],image)
 
     def test_fusion_ignores_background_and_invalid_depth(self):
         depth = np.full((10,10),99.,np.float32)
@@ -56,10 +51,11 @@ class ComponentTests(unittest.TestCase):
         self.assertEqual((xs.max()-xs.min()+1,ys.max()-ys.min()+1),(80,160))
         self.assertTrue(np.all(crop[crop[:,:,3]==0,:3] == 0))
         objects=[SceneObject(1,'person',.9,(0,0,20,20),distance=4.),SceneObject(2,'chair',.8,(0,0,20,20),distance=2.,crop=crop),SceneObject(3,'bag',.7,(0,0,20,20))]
-        self.assertEqual([o.object_id for o in sidebar_objects(objects,2)],[2,1])
+        self.assertEqual([o.object_id for o in sidebar_objects(objects)],[1,2,3])
         display=compose_sidebar(frame,objects)
-        self.assertEqual(display.shape,(360,640+config.SIDEBAR_WIDTH,3))
-        np.testing.assert_array_equal(display[:,:640],frame)
+        self.assertGreaterEqual(display.shape[0],360)
+        self.assertGreaterEqual(display.shape[1],640+config.SIDEBAR_WIDTH)
+        np.testing.assert_array_equal(display[:360,:640],frame)
 
     def test_metric_evaluation(self):
         metrics=summarize(depth_metrics(np.array([[2.,4.],[3.,np.nan]]),np.array([[1.,2.],[0.,1.]]),20))

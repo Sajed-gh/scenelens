@@ -20,17 +20,17 @@ class ImagePipelineTests(unittest.TestCase):
         output = root / 'result.png'
         image = np.full((100,160,3),80,np.uint8)
         cv2.imwrite(str(source),image)
-        detector = SimpleNamespace(device='cpu',detect=lambda frame: detections)
-        def segment(frame,objects,*args):
-            for obj in objects:
-                obj.mask=np.zeros(frame.shape[:2],bool)
-                x1,y1,x2,y2=map(int,obj.bbox)
-                obj.mask[y1:y2,x1:x2]=True
+        masked=[]
+        for d in detections:
+            mask=np.zeros(image.shape[:2],bool)
+            x1,y1,x2,y2=map(int,d.bbox)
+            mask[y1:y2,x1:x2]=True
+            masked.append(Detection(d.bbox,d.class_id,d.label,d.confidence,mask))
+        detector = SimpleNamespace(device='cpu',detect=lambda image: masked)
         depth=SimpleNamespace(estimate=lambda *args:np.full((100,160),3.,np.float32))
         with patch.object(config,'IMAGE_PATH',source), patch.object(config,'OUTPUT_IMAGE',output), \
-             patch.object(config,'HEADLESS',True), patch.object(config,'SAM_ENABLED',True), \
+             patch.object(config,'HEADLESS',True), \
              patch.object(config,'DEPTH_ENABLED',True), patch.object(main,'Detector',return_value=detector), \
-             patch.object(main,'Segmenter',return_value=SimpleNamespace(segment=segment)), \
              patch.object(main,'DepthEstimator',return_value=depth):
             report=main.run()
         np.testing.assert_array_equal(cv2.imread(str(source)),image)
@@ -54,6 +54,13 @@ class ImagePipelineTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             report=self.run_image(Path(directory),[])
             self.assertEqual(report['objects'],[])
+
+    def test_masks_and_distance_for_more_than_six_objects(self):
+        with TemporaryDirectory() as directory:
+            detections=[Detection((10,10,40,70),0,'person',.9) for _ in range(7)]
+            report=self.run_image(Path(directory),detections)
+            self.assertEqual(len(report['objects']),7)
+            self.assertTrue(all(obj['crop'] and obj['distance_m']==3. for obj in report['objects']))
 
     def test_missing_image_fails_before_models_load(self):
         with patch.object(config,'IMAGE_PATH',Path('/tmp/scenelens-missing-input.png')), \

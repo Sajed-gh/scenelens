@@ -1,4 +1,4 @@
-"""Analyze one image with YOLO, MobileSAM and metric depth."""
+"""Analyze one image with YOLO instance segmentation and metric depth."""
 
 import json
 from pathlib import Path
@@ -10,7 +10,6 @@ import torch
 from scenelens import config
 from scenelens.models.detector import Detector
 from scenelens.models.depth import DepthEstimator
-from scenelens.models.segmenter import Segmenter
 from scenelens.analysis.objects import SceneObject
 from scenelens.analysis.distance import update_object_distances
 from scenelens.rendering.renderer import draw_scene_objects, extract_object_crop, compose_sidebar, render_depth_preview
@@ -45,9 +44,8 @@ def run():
     original_height, original_width = image.shape[:2]
     image = resize_image(image)
     detector = Detector(config.DETECTOR_WEIGHTS, config.DETECTOR_CONFIDENCE,
-                        config.DETECTOR_IMAGE_SIZE, config.DETECTOR_DEVICE, config.DETECTOR_FP16)
-    segmenter = Segmenter(config.SAM_WEIGHTS, config.SAM_DEVICE,
-                          config.SAM_BATCH_PROMPTS) if config.SAM_ENABLED else None
+                        config.DETECTOR_IMAGE_SIZE, config.DETECTOR_DEVICE, config.DETECTOR_FP16,
+                        require_masks=True)
     depth_estimator = DepthEstimator(config.DEPTH_MODEL, config.DEPTH_CACHE_DIR,
                                      config.DEPTH_DEVICE, config.DEPTH_INPUT_SIZE) if config.DEPTH_ENABLED else None
     model_load_ms = (perf_counter() - start) * 1000
@@ -63,14 +61,11 @@ def run():
         timings[name + '_ms'] = (perf_counter() - begin) * 1000
         return value
 
-    detections = measure('detection', lambda: detector.detect(image))
+    detections = measure('detection_segmentation', lambda: detector.detect(image))
     # Assign image-local object numbers.
-    objects = [SceneObject(index, d.label, d.confidence, d.bbox)
+    objects = [SceneObject(index, d.label, d.confidence, d.bbox, mask=d.mask)
                for index, d in enumerate(detections, 1)]
     depth_map = measure('depth', lambda: depth_estimator.estimate(image)) if depth_estimator else None
-    if segmenter:
-        measure('segmentation', lambda: segmenter.segment(
-            image, objects, config.SAM_MAX_OBJECTS, config.DETECTOR_CONFIDENCE))
     update_object_distances(objects, depth_map, config.OBJECT_DEPTH_MIN_PIXELS)
     for obj in objects:
         obj.crop = extract_object_crop(image, obj.mask, config.OBJECT_CROP_SIZE)

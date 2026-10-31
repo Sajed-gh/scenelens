@@ -1,10 +1,11 @@
 # SceneLens
 
-Analyze a still image with YOLO26s detection, MobileSAM object masks, and Depth
+Analyze a still image with YOLO26s-seg detection and instance masks, and Depth
 Anything V2 Metric Indoor Small. Results include an annotated image with a
-nearest-object sidebar, transparent object cutouts, a depth visualization, and a
+all-object mask gallery, transparent object cutouts, a depth visualization, and a
 JSON report. See the [architecture](docs/architecture.md) and
-[project plan](docs/project_plan.md).
+[project plan](docs/project_plan.md). The [V2 plan](docs/v2_project_plan.md) breaks
+agent-ready perception into small, verifiable steps.
 
 ## Setup
 
@@ -14,12 +15,11 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Download [mobile_sam.pt](https://github.com/ChaoningZhang/MobileSAM/blob/master/weights/mobile_sam.pt)
-to `weights/`. YOLO downloads `yolo26s.pt` into `weights/` on first use. The first depth run
-downloads [the metric indoor Small checkpoint](https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf)
+YOLO downloads `yolo26s-seg.pt` into `weights/` on first use. The first depth
+run downloads [the metric indoor Small checkpoint](https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf)
 into `.cache/huggingface/`. Offline use requires these assets already present.
-Git is required for MobileSAM installation. For a CUDA 12.4 environment, install
-matching PyTorch packages using the official CUDA wheel index:
+The runtime loads two networks: YOLO instance segmentation and indoor metric depth.
+For a CUDA 12.4 environment, install matching PyTorch packages:
 
 ```bash
 python -m pip install torch==2.6.0 torchvision==0.21.0 \
@@ -63,21 +63,24 @@ All defaults live in `scenelens/config.py`; `python -m scenelens --help` lists o
 | --- | --- |
 | `--image` | Input image; defaults to `data/images/indoor67/livingroom/room502.jpg` |
 | `--output` | Annotated PNG, JPEG, or WebP destination |
-| `--weights` | Detector weights; defaults to YOLO26s |
+| `--weights` | Segmentation weights; defaults to YOLO26s-seg |
 | `--detector-size` | YOLO inference size; default 960 |
 | `--width` | Maximum analyzed width, preserving aspect ratio |
-| `--max-objects` | Highest-confidence objects to segment, default 6 |
 | `--depth-size` | Depth model input size, multiple of 14; default 518 |
 | `--device` | Optional override; defaults to `cuda:0` for all models |
 | `--threads` | Optional CPU thread limit |
 | `--fp16` | Optional CUDA YOLO FP16 |
 | `--headless` | Save without opening a window |
 
-`DETECTOR_CONFIDENCE` defaults to 50%. `SAM_BATCH_PROMPTS` batches CUDA box prompts.
-Set `SAM_ENABLED`, `DEPTH_ENABLED`, `SAVE_DEPTH_PREVIEW`, or `SIDEBAR_ENABLED` to
-control outputs. The sidebar shows up to six objects, fewer at small image heights,
-sorted by known depth with unknown-depth objects last. Objects beyond the
-segmentation limit show unavailable-depth/crop placeholders.
+`DETECTOR_CONFIDENCE` defaults to 50%. Every returned object receives its own YOLO
+mask at the analyzed image resolution. There is no separate segmentation budget.
+Set `DEPTH_ENABLED`, `SAVE_DEPTH_PREVIEW`, or `SIDEBAR_ENABLED` to control outputs.
+The object gallery shows every detection above the confidence threshold in object-ID
+order, including unknown-depth objects. It expands into additional rows and columns
+rather than selecting only the nearest objects. The saved result may be taller or
+wider than the input; the main image remains at the top left at its analyzed size.
+`SIDEBAR_WIDTH` sets card width and `SIDEBAR_MIN_CARD_HEIGHT` controls minimum card
+height. The main image overlays every returned mask as well.
 
 Distance is the median of finite positive depth values inside the segmentation
 mask, requiring at least `OBJECT_DEPTH_MIN_PIXELS` samples. It estimates surface
@@ -137,7 +140,7 @@ the current working directory.
 python -m scenelens.evaluation.detection
 ```
 
-This compares YOLO26s at 640/960 and YOLO26m at 960 on the configured indoor image. It does not automatically run the entire dataset.
+This compares YOLO26s-seg at 640/960 and YOLO26m-seg at 960 on the configured indoor image. It does not automatically run the entire dataset.
 Use `--images data/images/indoor67/livingroom/room502.jpg data/images/indoor67/office/o5.jpg` to select inputs. It saves detection overlays,
 side-by-side images, per-detection JSON, and a Markdown latency/memory report to
 `data/outputs/detection-comparison/`. Each input shape is warmed up before three
@@ -146,7 +149,7 @@ Confidence is held at the configured threshold. A failed model is recorded witho
 discarding successful results, and an incomplete comparison exits with code 1.
 More detections do not by themselves establish higher precision/recall or mAP.
 
-The default is YOLO26s/960 with confidence 0.50. Use `--detector-size 640` for
+The default is YOLO26s-seg/960 with confidence 0.50. Use `--detector-size 640` for
 lower inference cost. Quantitative detection quality on the indoor dataset still
 requires a labeled evaluation set; counts alone do not measure accuracy.
 
@@ -158,3 +161,14 @@ Use 170 development images for iteration and 30 fixed regression images for repe
 Lists and SHA256 selection records are in `data/splits/indoor67/`. Run the
 configured living-room example with `python -m scenelens`, or choose a category image
 using `--image`. See [dataset organization](docs/dataset.md).
+
+## Segmentation migration status
+
+YOLO26s-seg replaces the previous separate detector and MobileSAM. Timings now
+report a combined `detection_segmentation_ms` stage plus depth and rendering.
+Use `--weights weights/yolo26s-seg.pt`; detection-only weights are rejected by the
+image pipeline because they cannot provide the required masks. YOLO's
+`retina_masks=True` requests original-image mask geometry, which is checked before
+fusion. Segmentation and depth need fresh quality and latency comparisons on the
+regression subset. The pretrained segmentation checkpoint download was blocked in
+the agent environment; local execution will download it automatically when online.
