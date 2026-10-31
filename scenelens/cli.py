@@ -10,10 +10,11 @@ def parse_options():
     parser = argparse.ArgumentParser(description=__doc__)
     for name, key, value_type in [('image','IMAGE_PATH',Path), ('output','OUTPUT_IMAGE',Path),
                                   ('weights','DETECTOR_WEIGHTS',Path), ('width','IMAGE_MAX_WIDTH',int),
+                                  ('detector-size','DETECTOR_IMAGE_SIZE',int),
                                   ('depth-size','DEPTH_INPUT_SIZE',int), ('max-objects','SAM_MAX_OBJECTS',int),
                                   ('threads','TORCH_THREADS',int)]:
         parser.add_argument('--' + name, dest=key, type=value_type)
-    parser.add_argument('--device', help='Apply cpu or cuda:0 to all models.')
+    parser.add_argument('--device', help='Optional override; default CUDA with CPU fallback.')
     parser.add_argument('--headless', action='store_true', default=None)
     parser.add_argument('--fp16', action='store_true', default=None, help='CUDA YOLO FP16 only.')
     args = vars(parser.parse_args())

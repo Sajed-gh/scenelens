@@ -74,7 +74,14 @@ def run():
     update_object_distances(objects, depth_map, config.OBJECT_DEPTH_MIN_PIXELS)
     for obj in objects:
         obj.crop = extract_object_crop(image, obj.mask, config.OBJECT_CROP_SIZE)
-    output = Path(config.OUTPUT_IMAGE) if config.OUTPUT_IMAGE else config.PROJECT_ROOT / 'data' / 'outputs' / f'{source.stem}_scenelens.png'
+    if config.OUTPUT_IMAGE:
+        output = Path(config.OUTPUT_IMAGE)
+    else:
+        try:
+            relative = source.resolve().relative_to(config.DATASET_IMAGES_DIR.resolve())
+        except ValueError:
+            relative = Path(source.name)
+        output = config.PROJECT_ROOT / 'data' / 'outputs' / relative.parent / f'{source.stem}_scenelens.png'
     if output.suffix.lower() not in ('.png', '.jpg', '.jpeg', '.webp'):
         raise ValueError('Output must be a PNG, JPEG or WebP image.')
     if output.resolve() == source.resolve():

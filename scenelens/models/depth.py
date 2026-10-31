@@ -4,10 +4,12 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
+from scenelens.runtime import resolve_device
 
 
 class DepthEstimator:
     def __init__(self, model_name, cache_dir, device=None, input_size=518):
+        self.device = resolve_device(device)
         if input_size < 14 or input_size % 14:
             raise ValueError("Depth input size must be a positive multiple of 14.")
         self.input_size = input_size
@@ -17,7 +19,6 @@ class DepthEstimator:
             raise RuntimeError(
                 "Depth dependencies are missing. Run: python -m pip install -r requirements.txt"
             ) from error
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         try:
             self.processor = AutoImageProcessor.from_pretrained(model_name, cache_dir=str(cache_dir))
             self.model = AutoModelForDepthEstimation.from_pretrained(
