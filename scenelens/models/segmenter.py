@@ -7,10 +7,12 @@ import numpy as np
 import torch
 
 from scenelens.analysis.objects import SceneObject
+from scenelens.runtime import resolve_device
 
 
 class Segmenter:
     def __init__(self, weights, device=None, batch_prompts=True):
+        self.device = resolve_device(device)
         try:
             from mobile_sam import SamPredictor, sam_model_registry
         except ImportError as error:
@@ -24,9 +26,6 @@ class Segmenter:
                 "from https://github.com/ChaoningZhang/MobileSAM/tree/master/weights "
                 "and set SAM_WEIGHTS in scenelens/config.py."
             )
-        self.device = device if device is not None else (
-            "cuda" if torch.cuda.is_available() else "cpu"
-        )
         model = sam_model_registry["vit_t"](checkpoint=str(weights))
         model.to(device=self.device)
         model.eval()

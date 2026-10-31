@@ -27,6 +27,8 @@ data/outputs/*
 !data/outputs/.gitkeep
 data/tum/
 data/datasets/
+data/annotations/
+data/splits/
 
 # Secrets and local configuration
 .env

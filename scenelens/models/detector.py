@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import torch
 from ultralytics import YOLO
+from scenelens.runtime import resolve_device
 
 
 @dataclass(frozen=True)
@@ -16,9 +17,7 @@ class Detection:
 
 class Detector:
     def __init__(self, weights, confidence=0.25, image_size=640, device=None, half=False):
-        self.device = device if device is not None else (
-            "0" if torch.cuda.is_available() else "cpu"
-        )
+        self.device = resolve_device(device)
         self.confidence = confidence
         self.image_size = image_size
         self.half = half and self.device != "cpu"

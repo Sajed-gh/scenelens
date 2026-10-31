@@ -57,7 +57,7 @@ def main():
     parser.add_argument('--max-difference', type=float, default=.02)
     parser.add_argument('--max-depth', type=float, default=20.)
     parser.add_argument('--depth-scale', type=float, default=5000.)
-    parser.add_argument('--device', default=None)
+    parser.add_argument('--device', default=config.DEFAULT_DEVICE)
     parser.add_argument('--threads', type=int, default=None)
     parser.add_argument('--output', type=Path, default=Path('data/outputs/depth_evaluation.json'))
     args = parser.parse_args()

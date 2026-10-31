@@ -2,7 +2,10 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-IMAGE_PATH = PROJECT_ROOT / "data" / "images" / "test.jpg"
+DEFAULT_DEVICE = "cuda:0"
+DATASET_IMAGES_DIR = PROJECT_ROOT / "data" / "images" / "indoor67"
+DATASET_SPLITS_DIR = PROJECT_ROOT / "data" / "splits" / "indoor67"
+IMAGE_PATH = DATASET_IMAGES_DIR / "livingroom" / "room502.jpg"
 OUTPUT_IMAGE = None  # Defaults to data/outputs/<image-stem>_scenelens.png.
 SAVE_DEPTH_PREVIEW = True
 IMAGE_MAX_WIDTH = 1280  # None keeps original size. Smaller images are not enlarged.
@@ -12,14 +15,14 @@ HEADLESS = False
 TORCH_THREADS = None
 
 DETECTOR_WEIGHTS = PROJECT_ROOT / "weights" / "yolo26s.pt"
-DETECTOR_CONFIDENCE = 0.50
-DETECTOR_IMAGE_SIZE = 640
-DETECTOR_DEVICE = None  # Auto-select CUDA or CPU; override with "cuda:0" or "cpu".
+DETECTOR_CONFIDENCE = 0.5
+DETECTOR_IMAGE_SIZE = 960
+DETECTOR_DEVICE = DEFAULT_DEVICE
 DETECTOR_FP16 = False
 
 SAM_ENABLED = True
 SAM_WEIGHTS = PROJECT_ROOT / "weights" / "mobile_sam.pt"
-SAM_DEVICE = None
+SAM_DEVICE = DEFAULT_DEVICE
 SAM_MAX_OBJECTS = 6  # Segment the highest-confidence objects; raise for detailed images.
 SAM_BATCH_PROMPTS = True  # Decode box prompts together on CUDA.
 MASK_ALPHA = 0.35
@@ -28,7 +31,7 @@ OBJECT_CROP_SIZE = (160, 160)  # Width, height
 DEPTH_ENABLED = True
 DEPTH_MODEL = "depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf"
 DEPTH_CACHE_DIR = PROJECT_ROOT / ".cache" / "huggingface"
-DEPTH_DEVICE = None
+DEPTH_DEVICE = DEFAULT_DEVICE
 DEPTH_INPUT_SIZE = 518  # Positive multiple of 14.
 DEPTH_PREVIEW_MAX_METERS = 20.0  # Visualization scale only.
 OBJECT_DEPTH_MIN_PIXELS = 20
