@@ -1,0 +1,42 @@
+# Python environment and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Packaging and test artifacts
+build/
+dist/
+*.egg-info/
+.coverage
+.coverage.*
+htmlcov/
+
+# Downloaded models and caches
+.cache/
+weights/*
+!weights/.gitkeep
+
+# Local images, datasets, and generated results
+data/images/*
+!data/images/.gitkeep
+data/outputs/*
+!data/outputs/.gitkeep
+data/tum/
+data/datasets/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+.aws/
+*.log
+docs
+
+# Editor and OS files
+.idea/
+.DS_Store
+Thumbs.db
